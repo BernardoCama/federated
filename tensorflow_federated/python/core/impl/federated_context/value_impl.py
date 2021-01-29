@@ -15,7 +15,6 @@
 
 import abc
 import collections
-import itertools
 from typing import Any, Union
 
 import attr
@@ -168,14 +167,14 @@ class ValueImpl(value_base.Value, metaclass=abc.ABCMeta):
     if _is_federated_named_tuple(self):
       new_comp = building_block_factory.create_federated_setattr_call(
           self._comp, name, value_comp)
-      super().__setattr__('_comp', new_comp)
-      return
-    named_tuple_setattr_lambda = building_block_factory.create_named_tuple_setattr_lambda(
-        self.type_signature, name, value_comp)
-    new_comp = building_blocks.Call(named_tuple_setattr_lambda, self._comp)
-    fc_context = self._context_stack.current
-    ref = fc_context.bind_computation_to_reference(new_comp)
-    super().__setattr__('_comp', ref)
+    else:
+      named_tuple_setattr_lambda = building_block_factory.create_named_tuple_setattr_lambda(
+          self.type_signature, name, value_comp)
+      called_setattr_lambda = building_blocks.Call(named_tuple_setattr_lambda,
+                                                   self._comp)
+      fc_context = self._context_stack.current
+      new_comp = fc_context.bind_computation_to_reference(called_setattr_lambda)
+    super().__setattr__('_comp', new_comp)
 
   def __bool__(self):
     raise TypeError(
@@ -342,15 +341,11 @@ def _wrap_sequence_as_value(elements, element_type, context_stack):
   return _wrap_computation_as_value(proto, context_stack)
 
 
-def _dictlike_items_to_value(items, type_spec, context_stack,
-                             container_type) -> ValueImpl:
-  elements = []
-  for (i, (k, v)) in enumerate(items):
-    element_type = None if type_spec is None else type_spec[i]
-    element_value = to_value(v, element_type, context_stack)
-    elements.append((k, ValueImpl.get_comp(element_value)))
-  return ValueImpl(
-      building_blocks.Struct(elements, container_type), context_stack)
+def _dictlike_items_to_value(items, context_stack, container_type) -> ValueImpl:
+  value = building_blocks.Struct(
+      [(k, ValueImpl.get_comp(to_value(v, None, context_stack)))
+       for k, v in items], container_type)
+  return ValueImpl(value, context_stack)
 
 
 def to_value(
@@ -426,28 +421,29 @@ def to_value(
   elif type_spec is not None and type_spec.is_sequence():
     result = _wrap_sequence_as_value(arg, type_spec.element, context_stack)
   elif isinstance(arg, structure.Struct):
-    items = structure.iter_elements(arg)
-    result = _dictlike_items_to_value(items, type_spec, context_stack, None)
+    result = ValueImpl(
+        building_blocks.Struct([
+            (k, ValueImpl.get_comp(to_value(v, None, context_stack)))
+            for k, v in structure.iter_elements(arg)
+        ]), context_stack)
   elif py_typecheck.is_named_tuple(arg):
     items = arg._asdict().items()
-    result = _dictlike_items_to_value(items, type_spec, context_stack,
-                                      type(arg))
+    result = _dictlike_items_to_value(items, context_stack, type(arg))
   elif py_typecheck.is_attrs(arg):
     items = attr.asdict(
         arg, dict_factory=collections.OrderedDict, recurse=False).items()
-    result = _dictlike_items_to_value(items, type_spec, context_stack,
-                                      type(arg))
+    result = _dictlike_items_to_value(items, context_stack, type(arg))
   elif isinstance(arg, dict):
     if isinstance(arg, collections.OrderedDict):
       items = arg.items()
     else:
       items = sorted(arg.items())
-    result = _dictlike_items_to_value(items, type_spec, context_stack,
-                                      type(arg))
+    result = _dictlike_items_to_value(items, context_stack, type(arg))
   elif isinstance(arg, (tuple, list)):
-    items = zip(itertools.repeat(None), arg)
-    result = _dictlike_items_to_value(items, type_spec, context_stack,
-                                      type(arg))
+    result = ValueImpl(
+        building_blocks.Struct(
+            [ValueImpl.get_comp(to_value(x, None, context_stack)) for x in arg],
+            type(arg)), context_stack)
   elif isinstance(arg, tensorflow_utils.TENSOR_REPRESENTATION_TYPES):
     result = _wrap_constant_as_value(arg, context_stack)
   elif isinstance(arg, (tf.Tensor, tf.Variable)):
