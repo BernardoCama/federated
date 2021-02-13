@@ -27,7 +27,7 @@ py_library(
         ":executor",
         "//tensorflow_federated/python/core/impl/context_stack:context_stack_impl",
         "//tensorflow_federated/python/core/impl/executors:execution_context",
-        "//tensorflow_federated/python/core/impl/executors:executor_factory",
+        "//tensorflow_federated/python/core/impl/executors:executor_stacks",
     ],
 )
 

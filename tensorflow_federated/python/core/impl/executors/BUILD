@@ -384,6 +384,7 @@ py_library(
         ":federating_executor",
         ":reference_resolving_executor",
         ":remote_executor",
+        ":sequence_executor",
         ":sizing_executor",
         ":thread_delegating_executor",
         "//tensorflow_federated/python/common_libs:py_typecheck",
@@ -646,6 +647,46 @@ py_test(
         "//tensorflow_federated/python/core/api:intrinsics",
         "//tensorflow_federated/python/core/impl/types:placement_literals",
         "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
+py_library(
+    name = "sequence_executor",
+    srcs = ["sequence_executor.py"],
+    srcs_version = "PY3",
+    deps = [
+        ":executor_base",
+        ":executor_value_base",
+        "//tensorflow_federated/proto/v0:computation_py_pb2",
+        "//tensorflow_federated/python/common_libs:py_typecheck",
+        "//tensorflow_federated/python/common_libs:structure",
+        "//tensorflow_federated/python/common_libs:tracing",
+        "//tensorflow_federated/python/core/api:computation_types",
+        "//tensorflow_federated/python/core/api:typed_object",
+        "//tensorflow_federated/python/core/impl/compiler:intrinsic_defs",
+        "//tensorflow_federated/python/core/impl/types:type_analysis",
+        "//tensorflow_federated/python/core/impl/types:type_conversions",
+        "//tensorflow_federated/python/core/impl/types:type_serialization",
+    ],
+)
+
+py_test(
+    name = "sequence_executor_test",
+    size = "small",
+    srcs = ["sequence_executor_test.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        ":eager_tf_executor",
+        ":sequence_executor",
+        "//tensorflow_federated/proto/v0:computation_py_pb2",
+        "//tensorflow_federated/python/common_libs:structure",
+        "//tensorflow_federated/python/core/api:computation_types",
+        "//tensorflow_federated/python/core/api:computations",
+        "//tensorflow_federated/python/core/impl/compiler:intrinsic_defs",
+        "//tensorflow_federated/python/core/impl/computation:computation_impl",
+        "//tensorflow_federated/python/core/impl/types:type_factory",
+        "//tensorflow_federated/python/core/impl/types:type_serialization",
     ],
 )
 

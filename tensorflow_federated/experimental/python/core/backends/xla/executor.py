@@ -75,10 +75,17 @@ class _ComputationCallable(typed_object.TypedObject):
       comp_pb: An instance of `pb.Computation`.
       type_spec: An instance of `computation_types.FunctionType`.
       backend: An instance of `xla_client.Client`.
+
+    Raises:
+      ValueError: if the arguments are invalid.
     """
     py_typecheck.check_type(comp_pb, pb.Computation)
     py_typecheck.check_type(type_spec, computation_types.FunctionType)
     py_typecheck.check_type(backend, xla_client.Client)
+    which_computation = comp_pb.WhichOneof('computation')
+    if which_computation != 'xla':
+      raise ValueError(
+          'Unsupported computation type: {}'.format(which_computation))
     xla_comp = xla_serialization.unpack_xla_computation(comp_pb.xla.hlo_module)
     compile_options = xla_client.CompileOptions()
     compile_options.parameter_is_tupled_arguments = True
@@ -258,13 +265,18 @@ class XlaExecutor(executor_base.Executor):
 
   # TODO(b/175888145): Reach full functional parity with the eager TF executor.
 
-  def __init__(self, backend=None):
+  # TODO(b/175888145): Add support for explicitly specifying devices.
+
+  def __init__(self, device=None):
     """Creates a new instance of an XLA executor.
 
     Args:
-      backend: An optional name of a local XLA backend.
+      device: An optional device name (currently unsupported; must be `None`).
     """
-    self._backend = xla_client.get_local_backend(backend)
+    if device is not None:
+      raise ValueError(
+          'Explicitly specifying a device is currently not supported.')
+    self._backend = xla_client.get_local_backend(None)
 
   @tracing.trace(span=True)
   async def create_value(self, value, type_spec=None):
